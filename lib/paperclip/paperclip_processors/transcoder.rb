@@ -17,6 +17,8 @@ module Paperclip
 
       @convert_options  = set_convert_options(options)
 
+      @attachment       = attachment
+
       @format           = options[:format]
 
       @geometry         = options[:geometry]
@@ -36,7 +38,19 @@ module Paperclip
 
       @convert_options[:output][:s] = format_geometry(@geometry) if @geometry.present?
 
-      attachment.instance_write(:meta, @meta) if attachment
+      @attachment.instance_write(:meta, @meta) if @attachment
+    end
+
+    def process_param param
+      key = param[0]
+      value = param[1]
+
+      return param if !value.is_a? Proc
+
+      new_value = value.call(@attachment.instance)
+      puts "#{key} has new value: #{new_value}"
+
+      return [ key, new_value ] if new_value.present?
     end
 
     # Performs the transcoding of the +file+ into a thumbnail/video. Returns the Tempfile
@@ -62,12 +76,14 @@ module Paperclip
         if @convert_options.present?
           if @convert_options[:input]
             @convert_options[:input].each do |h|
-              @cli.add_input_param h
+              param = process_param(h)
+              @cli.add_input_param(param) if param.present?
             end
           end
           if @convert_options[:output]
             @convert_options[:output].each do |h|
-              @cli.add_output_param h
+              param = process_param(h)
+              @cli.add_output_param(param) if param.present?
             end
           end
         end
